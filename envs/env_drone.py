@@ -171,7 +171,7 @@ class Drone(object):
         self.num_steps = 0
         return state, obstacle, goal
 
-    def step(self, u):
+    def sample(self, u):
         dsdt = self.uncertain_dynamics(self.state, u)
         noise = self.get_noise()
         state = self.state + (dsdt + noise) * self.dt
@@ -185,6 +185,10 @@ class Drone(object):
 
         obstacle = self.get_obstacle(state)
         goal = self.get_goal(state)
+        return state, state_nominal, obstacle, goal
+
+    def step(self, u):
+        state, state_nominal, obstacle, goal = self.sample(u)
         self.state = state
         done = np.linalg.norm(state[:3] - goal[:3]) < self.safe_dist or self.num_steps > self.max_steps
         self.num_steps = self.num_steps + 1
