@@ -11,6 +11,16 @@ Install [PyTorch](https://pytorch.org/)>=1.9. GPU is not required, but recommend
 pip install numpy matplotlib tqdm
 ```
 
+### Development
+If you are developing on a fork, configure your remote:
+```bash
+git remote add fork <YOUR_FORK_URL>
+```
+And push your changes using:
+```bash
+git push fork main
+```
+
 ## Testing Pretrained Models
 
 Download `data.zip` from [this link](https://drive.google.com/file/d/1E4SxeWGFFhNPosMGI7NjRtQnYTUaDQDW/view?usp=sharing) and unzip in the main folder. It contains the estimated dynamics of the models and the neural network weights for the controllers and control barrier functions.

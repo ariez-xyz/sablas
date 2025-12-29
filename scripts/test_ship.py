@@ -101,7 +101,7 @@ def main(env_name='ship', preplanned_traj=None, npc_speed=0.5, vis=False, save_t
                 print('Trajectory saved to ship_trajectory.json. Finished.')
                 break
 
-        if vis and np.mod(i, 10) == 0:
+        if vis and np.mod(i, vis) == 0:
             ax.clear()
             ax.scatter(obstacle[:, 0], obstacle[:, 1], color='grey')
             ax.scatter(state[0], state[1], color='darkred')
@@ -109,7 +109,7 @@ def main(env_name='ship', preplanned_traj=None, npc_speed=0.5, vis=False, save_t
             yaw = state[2]
             R = np.array([[np.cos(yaw), -np.sin(yaw)], [np.sin(yaw), np.cos(yaw)]])
             rect = rect.dot(R.T) + state[:2]
-            p = PatchCollection([Polygon(rect, True)], alpha=0.1, color='darkred')
+            p = PatchCollection([Polygon(rect, closed=True)], alpha=0.1, color='darkred')
             ax.add_collection(p)
             ax.scatter(goal[0], goal[1], color='darkorange')
             if not is_safe:
@@ -122,7 +122,8 @@ def main(env_name='ship', preplanned_traj=None, npc_speed=0.5, vis=False, save_t
                 ax.set_xlim(0, 20)
                 ax.set_ylim(0, 20)
             fig.canvas.draw()
-            plt.pause(0.01)
+            if vis < 0: plt.waitforbuttonpress()
+            else: plt.pause(0.01)
 
     goal_reaching_success_rate = goal_reached * 1.0 / num_episodes
     print('Safety rate: {:.4f}, Goal reaching success rate: {:.4f}, Traj following error: {:.4f}'.format(

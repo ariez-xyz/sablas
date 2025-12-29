@@ -14,9 +14,10 @@ import matplotlib.pyplot as plt
 np.set_printoptions(4)
 
 
-def main(env_name='drone', preplanned_traj=None, npc_speed=0.5, vis=True, save_traj=False, estimated_param=None, goal_radius=2.0):
+def main(env_name='drone', preplanned_traj=None, npc_speed=0.5, vis=True, save_traj=False, estimated_param=None, goal_radius=2.0, generator=False):
+    k_obs = 8
     if env_name == 'drone':
-        env = Drone(estimated_param=estimated_param)
+        env = Drone(k_obstacle=k_obs, estimated_param=estimated_param)
     elif env_name == 'city':
         if save_traj:
             random_permute = False
@@ -33,13 +34,14 @@ def main(env_name='drone', preplanned_traj=None, npc_speed=0.5, vis=True, save_t
     cbf = CBF(n_state=8, k_obstacle=8, m_control=3)
     cbf.load_state_dict(torch.load('./data/drone_cbf_weights.pth'))
     cbf.eval()
+    cur_cbf = None
 
     state, obstacle, goal = env.reset()
 
     if vis:
         plt.ion()
-        fig = plt.figure(figsize=(10, 10))
-        ax = fig.add_subplot(111, projection='3d')
+    fig = plt.figure(figsize=(10, 10))
+    ax = fig.add_subplot(111, projection='3d')
 
     state_error = np.zeros((8,), dtype=np.float32)
     dt = 0.1
@@ -49,17 +51,29 @@ def main(env_name='drone', preplanned_traj=None, npc_speed=0.5, vis=True, save_t
     num_episodes = 0
     traj_following_error = 0
 
-    if save_traj:
-        all_agent_state_list = []
+    all_agent_state_list = []
 
     for i in range(config.EVAL_STEPS):
         u_nominal = env.nominal_controller(state, goal)
         u = nn_controller(
             torch.from_numpy(state.reshape(1, 8).astype(np.float32)), 
-            torch.from_numpy(obstacle.reshape(1, 8, 8).astype(np.float32)),
+            torch.from_numpy(obstacle.reshape(1, k_obs, 8).astype(np.float32)),
             torch.from_numpy(u_nominal.reshape(1, 3).astype(np.float32)),
             torch.from_numpy(state_error.reshape(1, 8).astype(np.float32)))
         u = np.squeeze(u.detach().cpu().numpy())
+
+        next_cbf = cbf(
+            torch.from_numpy(state.reshape(1, 8).astype(np.float32)), 
+            torch.from_numpy(obstacle.reshape(1, k_obs, 8).astype(np.float32)),
+        )
+        # Check the minimum barrier (closest obstacle)
+        min_barrier, min_idx = torch.min(next_cbf, dim=1)
+        if cur_cbf is not None:
+             # Calculate change just for the most dangerous obstacle
+             delta = cur_cbf[0, min_idx] - next_cbf[0, min_idx]
+             print(f"Closest Obstacle: {min_barrier.item():.4f} | Change: {delta.item():.4f}")
+        cur_cbf = next_cbf
+
         state_next, state_nominal_next, obstacle_next, goal_next, done = env.step(u)
         #state_next, state_nominal_next, obstacle_next, goal_next, done = env.step(u_nominal)
 
@@ -92,7 +106,7 @@ def main(env_name='drone', preplanned_traj=None, npc_speed=0.5, vis=True, save_t
                 print('Trajectory saved to drone_trajectory.json. Finished.')
                 break
 
-        if vis and np.mod(i, 20) == 0:
+        if vis and np.mod(i, vis) == 0:
             ax.clear()
             if env_name == 'city':
                 ax.set_xlim(state[0] - 5, state[0] + 5)
@@ -111,7 +125,8 @@ def main(env_name='drone', preplanned_traj=None, npc_speed=0.5, vis=True, save_t
             if not is_safe:
                 plt.scatter(state[0], state[1], state[2], color='darkblue')
             fig.canvas.draw()
-            plt.pause(0.01)
+            if vis < 0: plt.waitforbuttonpress()
+            else: plt.pause(0.01)
 
     goal_reaching_success_rate = goal_reached * 1.0 / num_episodes
     print('Safety rate: {:.4f}, Goal reaching success rate: {:.4f}, Traj following error: {:.4f}'.format(
