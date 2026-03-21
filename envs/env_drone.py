@@ -151,23 +151,39 @@ class Drone(object):
         self.K = np.array([[1, 0, 0, 2.41,    0,    0, 2.41,    0],
                            [0, 1, 0,    0, 2.41,    0,    0, 2.41],
                            [0, 0, 1,    0,    0, 1.73,    0,    0]])
-        self.noise = np.random.normal(size=(8,)) * self.noise_std
-        
-        
-    def reset(self):
-        self.obstacle = np.random.uniform(
-            low=0, high=self.env_size, size=(self.total_obstacle, 3))
-        state = np.random.uniform(low=0, high=self.env_size, size=(3,))
+        self.rng = np.random.default_rng()
+        self.noise = self.rng.normal(size=(8,)) * self.noise_std
+
+    def reset(self, seed=None):
+        rng = self.rng if seed is None else np.random.default_rng(int(seed))
+
+        self.obstacle = rng.uniform(
+            low=0, high=self.env_size, size=(self.total_obstacle, 3)
+        )
+
+        state = rng.uniform(low=0, high=self.env_size, size=(3,))
         while np.amin(np.linalg.norm(self.obstacle - state, axis=1)) < self.safe_dist:
-            state = np.random.uniform(low=0, high=self.env_size, size=(3,))
+            if seed is not None:
+                seed = int(seed) + 1
+                rng = np.random.default_rng(int(seed))
+            state = rng.uniform(low=0, high=self.env_size, size=(3,))
+
         state = np.concatenate([state, np.zeros((5,))])
         self.state = state
         obstacle = self.get_obstacle(state)
-        goal = np.random.uniform(low=0, high=self.env_size, size=(3,))
+
+        goal = rng.uniform(low=0, high=self.env_size, size=(3,))
         while np.amin(np.linalg.norm(self.obstacle - goal, axis=1)) < self.safe_dist:
-            goal = np.random.uniform(low=0, high=self.env_size, size=(3,))
+            if seed is not None:
+                seed = int(seed) + 1
+                rng = np.random.default_rng(int(seed))
+            goal = rng.uniform(low=0, high=self.env_size, size=(3,))
+
         goal = np.concatenate([goal, np.zeros((5,))])
         self.goal = goal
+        if seed is not None:
+            self.rng = rng
+        self.noise = self.rng.normal(size=(8,)) * self.noise_std
         self.num_steps = 0
         return state, obstacle, goal
 
@@ -272,8 +288,8 @@ class Drone(object):
         return self.goal
 
     def get_noise(self):
-        if np.random.uniform() < 0.05:
-            self.noise = np.random.normal(size=(8,)) * self.noise_std
+        if self.rng.uniform() < 0.05:
+            self.noise = self.rng.normal(size=(8,)) * self.noise_std
         noise = np.copy(self.noise)
         noise[:3] = 0
         return noise
